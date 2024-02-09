@@ -1,0 +1,26 @@
+name = "bootstrap2-cf"
+main = "src/index.js"
+compatibility_date = "2024-01-29"
+workers_dev = false
+
+[build]
+#command = "wasm-pack build --out-dir src/rust --release --target no-modules"
+command = "wasm-pack build --out-dir src/rust --release"
+
+[[rules]]
+globs = ["**/*.js"]
+type = "ESModule"
+fallthrough = false
+
+[[rules]]
+globs = ["**/*.wasm"]
+type = "CompiledWasm"
+fallthrough = false
+
+[env.dev]
+name = "neonphog"
+route = "worker.neonphog.com/*"
+account_id = "2628b4b23d00d785c1d177aaeb9d8ccb"
+kv_namespaces = [
+  { binding = "BOOTSTRAP", id = "99df026852624e44b31e7ef004f4e141" }
+]

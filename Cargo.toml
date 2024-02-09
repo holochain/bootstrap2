@@ -1,0 +1,21 @@
+[workspace]
+resolver = "2"
+members = [
+  "bootstrap2-core",
+  "bootstrap2-binary",
+  "bootstrap2-cf",
+]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+lto = true
+
+[workspace.dependencies]
+base64 = { version = "0.21.7", default-features = false, features = [ "alloc" ] }
+bootstrap2-core = { version = "0.0.1-alpha", path = "./bootstrap2-core", default-features = false }
+ed25519-dalek = { version = "2.1.1", default-features = false }
+serde = { version = "1.0.196", default-features = false, features = [ "alloc", "derive" ] }
+serde_json = { version = "1.0.113", default-features = false, features = [ "alloc" ] }
