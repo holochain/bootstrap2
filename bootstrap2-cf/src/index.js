@@ -1,18 +1,17 @@
-/**
- * Welcome to Cloudflare Workers! This is your first worker.
- *
- * - Run `npm run dev` in your terminal to start a development server
- * - Open a browser tab at http://localhost:8787/ to see your worker in action
- * - Run `npm run deploy` to publish your worker
- *
- * Learn more at https://developers.cloudflare.com/workers/
- */
-
 import wasm from './rust/bootstrap2_cf_bg.wasm'
 import * as bg from './rust/bootstrap2_cf_bg.js'
 
+let KV = null
 const wasmInst = await WebAssembly.instantiate(wasm, {
   './bootstrap2_cf_bg.js': bg,
+  './cloudflare.js': {
+    kv_put: async (k, v) => {
+      KV.put(k, v)
+    },
+    kv_get: async (k) => {
+      KV.get(k)
+    }
+  }
 })
 bg.__wbg_set_wasm(wasmInst.exports)
 
@@ -31,11 +30,15 @@ export default {
         body = await request.text()
       } catch (_e) { /* pass */ }
 
+      KV = env.BOOTSTRAP
       const [status, respBody] = await bg.bootstrap2(
+        KV,
         request.method,
         path,
         body
       )
+      KV = null
+
       return new Response(respBody, {
         status,
         headers: {
@@ -49,6 +52,8 @@ export default {
           'content-type': 'text/plain'
         }
       })
+    } finally {
+      KV = null
     }
   },
 };
