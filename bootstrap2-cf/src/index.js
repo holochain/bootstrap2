@@ -17,8 +17,6 @@ bg.__wbg_set_wasm(wasmInst.exports)
 
 export default {
   async fetch(request, env, ctx) {
-    await env.BOOTSTRAP.put('bob', 'yo')
-    console.log(await env.BOOTSTRAP.get('bob'))
     try {
       let path = '/'
       try {
@@ -26,12 +24,17 @@ export default {
       } catch (_e) { /* pass */ }
 
       let body = ''
-      try {
-        body = await request.text()
-      } catch (_e) { /* pass */ }
+      if (request.method === 'POST' || request.method == 'PUT') {
+        if (!request.headers || request.headers.get('content-type') !== 'application/json') {
+          throw new Error('content-type must be application/json')
+        }
+        try {
+          body = await request.text()
+        } catch (_e) { /* pass */ }
+      }
 
       KV = env.BOOTSTRAP
-      const [status, respBody] = await bg.bootstrap2(
+      const respBody = await bg.bootstrap2(
         KV,
         request.method,
         path,
@@ -40,16 +43,18 @@ export default {
       KV = null
 
       return new Response(respBody, {
-        status,
+        status: 200,
         headers: {
           'content-type': 'application/json'
         }
       })
     } catch (err) {
-      return new Response('Error: ' + err, {
+      return new Response(JSON.stringify({
+        error: err.toString(),
+      }, null, 2) + '\n', {
         status: 500,
         headers: {
-          'content-type': 'text/plain'
+          'content-type': 'application/json'
         }
       })
     } finally {

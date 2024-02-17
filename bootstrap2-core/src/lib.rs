@@ -71,3 +71,38 @@ fn b64_decode(s: &str) -> Result<lib::vec::Vec<u8>, BootstrapError> {
 
 mod agent_info;
 pub use agent_info::*;
+
+/// A boxed future type.
+pub type BoxFut<'lt, T> = lib::pin::Pin<alloc::boxed::Box<
+    dyn lib::future::Future<Output = T> + 'lt
+>>;
+
+/// Abstraction for the system in which we are running.
+pub trait Sys {
+    /// Get a time as an f64 representing milliseconds since the unix epoch.
+    fn date_now(&mut self) -> f64;
+
+    /// Put a value into the KV store.
+    fn kv_put(&mut self, key: &str, val: &str) -> BoxFut<'_, Result<(), BootstrapError>>;
+
+    /// Get a value from the KV store.
+    fn kv_get(&mut self, key: &str) -> BoxFut<'_, Result<alloc::string::String, BootstrapError>>;
+}
+
+/// Process a Holochain bootstrap2 request.
+pub async fn bootstrap2<S: Sys>(
+    mut sys: S,
+    method: &str,
+    path: &str,
+    body: &str,
+) -> Result<alloc::string::String, BootstrapError> {
+    let mut out = serde_json::to_string_pretty(&serde_json::json!({
+        "now": sys.date_now(),
+        "method": method,
+        "path": path,
+        "body": body,
+    }))
+    .map_err(BootstrapError::from_str)?;
+    out.push('\n');
+    Ok(out)
+}

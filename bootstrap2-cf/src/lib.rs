@@ -4,6 +4,7 @@
 #![no_std]
 
 use wasm_bindgen::prelude::*;
+use bootstrap2_core::*;
 
 extern crate alloc;
 
@@ -28,6 +29,44 @@ extern "C" {
     async fn kv_get(kv: &JsValue, k: &JsValue) -> Result<JsValue, JsValue>;
 }
 
+fn js_val_to_string(v: JsValue) -> alloc::string::String {
+    v.as_string().unwrap_or(alloc::string::ToString::to_string("null"))
+}
+
+fn js_val_to_err(v: JsValue) -> BootstrapError {
+    BootstrapError::from_str(js_val_to_string(v))
+}
+
+struct CfSys(JsValue);
+
+impl Sys for CfSys {
+    fn date_now(&mut self) -> f64 {
+        js_sys::Date::now()
+    }
+
+    /// Put a value into the KV store.
+    fn kv_put(&mut self, key: &str, val: &str) -> BoxFut<'_, Result<(), BootstrapError>> {
+        let key = JsValue::from(key);
+        let val = JsValue::from(val);
+        alloc::boxed::Box::pin(async move {
+            crate::kv_put(&self.0, &key, &val)
+                .await
+                .map_err(js_val_to_err)
+        })
+    }
+
+    /// Get a value from the KV store.
+    fn kv_get(&mut self, key: &str) -> BoxFut<'_, Result<alloc::string::String, BootstrapError>> {
+        let key = JsValue::from(key);
+        alloc::boxed::Box::pin(async move {
+            crate::kv_get(&self.0, &key)
+                .await
+                .map(js_val_to_string)
+                .map_err(js_val_to_err)
+        })
+    }
+}
+
 #[wasm_bindgen]
 pub async fn bootstrap2(
     kv: JsValue,
@@ -35,28 +74,13 @@ pub async fn bootstrap2(
     path: &str,
     body: &str,
 ) -> Result<JsValue, JsValue> {
-    kv_put(&kv, &"test".into(), &"val".into()).await?;
-    log("kv_get:".into());
-    log(kv_get(&kv, &"test".into()).await?);
-    let resp = js_sys::Array::new();
-    resp.push(&JsValue::from(200_u32));
-    resp.push(&JsValue::from_str(
-        &alloc::format!("{}\n", serde_json::to_string_pretty(&serde_json::json!({
-            "js-now": js_sys::Date::now(),
-            "method": method,
-            "path": path,
-            "body": body,
-            "ai": bootstrap2_core::AgentInfo {
-                space: [1; 32],
-                agent: [2; 32],
-                url: None,
-                signed_at_micros: 42,
-                expires_at_micros: 64,
-                extra: serde_json::json!({}),
-            }
-            .encode()
-            .map_err(|e| JsValue::from(alloc::string::ToString::to_string(&e)))?,
-        })).unwrap()),
-    ));
-    Ok(resp.into())
+    bootstrap2_core::bootstrap2(
+        CfSys(kv),
+        method,
+        path,
+        body,
+    )
+    .await
+    .map(JsValue::from)
+    .map_err(|e| JsValue::from(alloc::string::ToString::to_string(&e)))
 }
